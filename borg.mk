@@ -30,6 +30,7 @@ all: build
 
 SILENCIO  = --load subr-x
 SILENCIO += --eval "(setq byte-compile-warnings '(not docstrings))"
+SILENCIO += --eval "(setq borg-default-build-step '(borg-update-autoloads borg-byte-compile))"
 SILENCIO += --eval "(fset 'original-message (symbol-function 'message))"
 SILENCIO += --eval "(fset 'message\
 (lambda (format &rest args)\

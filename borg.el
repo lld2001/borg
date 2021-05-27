@@ -136,6 +136,11 @@ Each element has the form (ORIG . BASE).  Each URL that starts
 with ORIG is rewritten to start with BASE instead.  See info
 node `(borg)Using https URLs'.")
 
+(defvar borg-default-build-step '(borg-update-autoloads
+                                  borg-byte-compile
+                                  borg-makeinfo)
+  "Default build step of drone.")
+
 ;;; Utilities
 
 (defun borg-worktree (clone)
@@ -503,9 +508,12 @@ then also activate the clone using `borg-activate'."
                  (shell-command cmd)))
           (message "  Running `%s'...done" cmd))
       (let ((path (mapcar #'file-name-as-directory (borg-load-path clone))))
-        (borg-update-autoloads clone path)
-        (borg-byte-compile clone path)
-        (borg-makeinfo clone)))))
+        (when (memq 'borg-update-autoloads borg-default-build-step)
+          (borg-update-autoloads clone path))
+        (when (memq 'borg-byte-compile borg-default-build-step)
+          (borg-byte-compile clone path))
+        (when (memq 'borg-makeinfo borg-default-build-step)
+          (borg-makeinfo clone))))))
 
 (defun borg--build-interactive (clone)
   (save-some-buffers
