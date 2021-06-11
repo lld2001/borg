@@ -106,7 +106,7 @@ The value of this variable is usually the same as that of
      (car (process-lines "git" "rev-parse" "--show-toplevel"))))
   "The top-level of repository containing `borg-user-emacs-directory'.")
 
-(defconst borg-gitmodules-file
+(defvar borg-gitmodules-file
   (expand-file-name ".gitmodules" borg-top-level-directory)
   "The \".gitmodules\" file of the drone repository.")
 
