@@ -100,7 +100,7 @@ The value of this variable is usually the same as that of
 `user-emacs-directory', except when Emacs is started with
 `emacs -q -l /path/to/init.el'.")
 
-(defconst borg-top-level-directory
+(defvar borg-top-level-directory
   (let ((default-directory borg-user-emacs-directory))
     (file-name-as-directory
      (car (process-lines "git" "rev-parse" "--show-toplevel"))))
