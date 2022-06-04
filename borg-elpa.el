@@ -1,28 +1,28 @@
-;;; borg-elpa.el --- use Borg alongside Package.el  -*- lexical-binding: t -*-
+;;; borg-elpa.el --- Use Borg alongside Package.el  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2018-2021  Jonas Bernoulli
+;; Copyright (C) 2018-2022 Jonas Bernoulli
 
 ;; Author: Jonas Bernoulli <jonas@bernoul.li>
 ;; Homepage: https://github.com/emacscollective/borg
 ;; Keywords: tools
 
-;; This file contains code from GNU Emacs, which is
-;; Copyright (C) 1976-2017 Free Software Foundation, Inc.
+;; SPDX-License-Identifier: GPL-3.0-or-later
 
-;; This file is not part of GNU Emacs.
-
-;; This file is free software; you can redistribute it and/or modify
-;; it under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 3, or (at your option)
-;; any later version.
-
+;; This file is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published
+;; by the Free Software Foundation, either version 3 of the License,
+;; or (at your option) any later version.
+;;
 ;; This file is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with this file.  If not, see <https://www.gnu.org/licenses/>.
 
-;; For a full copy of the GNU General Public License
-;; see https://www.gnu.org/licenses.
+;; This file contains code taken from GNU Emacs, which is
+;; Copyright (C) 1976-2022 Free Software Foundation, Inc.
 
 ;;; Commentary:
 
@@ -45,7 +45,7 @@
 
 ;; Do not require `epkg' to avoid forcing all `borg' users
 ;; to install that and all of its numerous dependencies.
-(declare-function epkg 'epkg (name))
+(declare-function epkg "epkg" (name))
 (eval-when-compile
   (cl-pushnew 'summary eieio--known-slot-names))
 
@@ -73,7 +73,7 @@
       (funcall fn pkg-desc reload deps)))
 
 (advice-add 'package-activate-1 :around
-            'package-activate-1--borg-handle-activation)
+            #'package-activate-1--borg-handle-activation)
 
 (defun package-load-descriptor--borg-use-database (fn pkg-dir)
   "For a Borg-installed package, use information from the Epkgs database."
@@ -94,7 +94,7 @@
     (funcall fn pkg-dir)))
 
 (advice-add 'package-load-descriptor :around
-            'package-load-descriptor--borg-use-database)
+            #'package-load-descriptor--borg-use-database)
 
 (defun package--borg-clone-p (pkg-dir)
   ;; Currently `pkg-dir' is a `directory-file-name', but that might change.

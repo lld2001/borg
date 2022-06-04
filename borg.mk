@@ -1,11 +1,11 @@
-# Copyright (C) 2016-2021  Jonas Bernoulli
+# Copyright (C) 2016-2022  Jonas Bernoulli
 #
 # Author: Jonas Bernoulli <jonas@bernoul.li>
-# License: GPL v3 <https://www.gnu.org/licenses/gpl-3.0.txt>
+# SPDX-License-Identifier: GPL-3.0-or-later
 
 BORG_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 
--include ../../etc/borg/config.mk
+-include etc/borg/config.mk
 
 ifeq "$(BORG_SECONDARY_P)" "true"
   DRONES_DIR ?= $(shell git config "borg.drones-directory" || echo "elpa")
@@ -19,9 +19,8 @@ endif
 
 EMACS           ?= emacs
 EMACS_ARGUMENTS ?= -Q --batch
-# FIXME When using gccemacs, then some callers end up calling
-# `comp-subr-trampoline-install' but without requiring `comp'.
-EMACS_ARGUMENTS += --eval "(require 'comp nil t)"
+
+EMACS_EXTRA ?=
 
 .PHONY: all help clean clean-init build build-init quick bootstrap
 .FORCE:
@@ -48,6 +47,7 @@ ifeq "$(BORG_SECONDARY_P)" "true"
 else
 	$(info make $(DRONES_DIR)/DRONE       = rebuild DRONE)
 endif
+	$(info make build-native    = rebuild drones natively and init files)
 	$(info make build-init      = rebuild init files)
 	$(info make tangle-init     = recreate init.el from init.org)
 	$(info make clean           = remove all byte-code files)
@@ -65,29 +65,35 @@ clean-init:
 	@rm -f init.elc $(INIT_FILES:.el=.elc)
 
 build: clean-init
-	@$(EMACS) $(EMACS_ARGUMENTS) $(SILENCIO) \
+	@$(EMACS) $(EMACS_ARGUMENTS) $(EMACS_EXTRA) $(SILENCIO) \
 	$(BORG_ARGUMENTS) \
 	--funcall borg-batch-rebuild $(INIT_FILES) 2>&1
 
+build-native:
+	@$(EMACS) $(EMACS_ARGUMENTS) $(EMACS_EXTRA) $(SILENCIO) \
+	$(BORG_ARGUMENTS) \
+	--eval "(borg-batch-rebuild nil 'native-compile-async)" \
+	$(INIT_FILES) 2>&1
+
 build-init: clean-init
-	@$(EMACS) $(EMACS_ARGUMENTS) \
+	@$(EMACS) $(EMACS_ARGUMENTS) $(EMACS_EXTRA) \
 	$(BORG_ARGUMENTS) \
 	--funcall borg-batch-rebuild-init $(INIT_FILES) 2>&1
 
 tangle-init: init.el
 init.el: init.org
-	@$(EMACS) $(EMACS_ARGUMENTS) \
+	@$(EMACS) $(EMACS_ARGUMENTS) $(EMACS_EXTRA) \
 	--load org \
 	--eval '(org-babel-tangle-file "init.org")' 2>&1
 
 quick: clean-init
-	@$(EMACS) $(EMACS_ARGUMENTS) $(SILENCIO) \
+	@$(EMACS) $(EMACS_ARGUMENTS) $(EMACS_EXTRA) $(SILENCIO) \
 	$(BORG_ARGUMENTS) \
 	--eval '(borg-batch-rebuild t)' 2>&1
 
 $(BORG_DIR)borg.mk: ;
-lib/%: .FORCE
-	@$(EMACS) $(EMACS_ARGUMENTS) $(SILENCIO) \
+$(DRONES_DIR)/%: .FORCE
+	@$(EMACS) $(EMACS_ARGUMENTS) $(EMACS_EXTRA) $(SILENCIO) \
 	$(BORG_ARGUMENTS) \
 	--eval '(borg-build "$*")' 2>&1
 

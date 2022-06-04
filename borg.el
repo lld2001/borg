@@ -1,36 +1,34 @@
-;;; borg.el --- assimilate Emacs packages as Git submodules  -*- lexical-binding: t -*-
+;;; borg.el --- Assimilate Emacs packages as Git submodules  -*- lexical-binding:t -*-
 
-;; Copyright (C) 2016-2021  Jonas Bernoulli
+;; Copyright (C) 2016-2022 Jonas Bernoulli
 
 ;; Author: Jonas Bernoulli <jonas@bernoul.li>
 ;; Homepage: https://github.com/emacscollective/borg
 ;; Keywords: tools
 
-;; Package-Version: 3.1.2
-;; Package-Requires: ((emacs "26") (epkg "3.2.2") (magit "2.90.1"))
+;; Package-Version: 3.3.1-git
+;; Package-Requires: (
+;;     (emacs "26")
+;;     (epkg "3.3.3")
+;;     (magit "3.3.0"))
 
-;;   Borg itself does no actually require Emacs 26 and has no
-;;   other dependencies but when it is installed from Melpa,
-;;   then it includes `borg-elpa' and that requires Emacs 26
-;;   and Epkg.
+;; SPDX-License-Identifier: GPL-3.0-or-later
 
-;; This file contains code from GNU Emacs, which is
-;; Copyright (C) 1976-2016 Free Software Foundation, Inc.
-
-;; This file is not part of GNU Emacs.
-
-;; This file is free software; you can redistribute it and/or modify
-;; it under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 3, or (at your option)
-;; any later version.
-
+;; This file is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published
+;; by the Free Software Foundation, either version 3 of the License,
+;; or (at your option) any later version.
+;;
 ;; This file is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;; GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with this file.  If not, see <https://www.gnu.org/licenses/>.
 
-;; For a full copy of the GNU General Public License
-;; see https://www.gnu.org/licenses.
+;; This file contains code taken from GNU Emacs, which is
+;; Copyright (C) 1976-2022 Free Software Foundation, Inc.
 
 ;;; Commentary:
 
@@ -54,25 +52,41 @@
 (require 'pcase)
 (require 'subr-x)
 
-(eval-when-compile
-  (require 'epkg nil t))
-(declare-function eieio-oref        "eieio-core" (obj slot))
-(declare-function epkg                    "epkg" (name))
-(declare-function epkgs                   "epkg" (&optional select predicates))
-(declare-function epkg-git-package-p      "epkg" (obj))
-(declare-function epkg-github-package-p   "epkg" (obj))
-(declare-function epkg-gitlab-package-p   "epkg" (obj))
-(declare-function epkg-orphaned-package-p "epkg" (obj))
-(declare-function epkg-read-package       "epkg" (prompt &optional default))
-(declare-function format-spec      "format-spec" (format specification))
-(declare-function magit-get             "magit-git" (&rest keys))
+(declare-function eieio-oref "eieio-core" (obj slot))
+(declare-function epkg "epkg" (name))
+(declare-function epkgs "epkg" (&optional select predicates))
+;; check-declare doesn't know about defclass.
+;; (declare-function epkg-git-package-p "epkg" (obj))
+;; (declare-function epkg-github-package-p "epkg" (obj))
+;; (declare-function epkg-gitlab-package-p "epkg" (obj))
+;; (declare-function epkg-orphaned-package-p "epkg" (obj))
+(declare-function epkg-read-package "epkg" (prompt &optional default predicate))
+(declare-function format-spec "format-spec"
+                  (format specification &optional ignore-missing split))
+(declare-function magit-get "magit-git" (&rest keys))
 (declare-function magit-get-some-remote "magit-git" (&optional branch))
+(declare-function org-texinfo-export-to-texinfo "ox-texinfo"
+                  (&optional async subtreep visible-only body-only ext-plist))
+
+(when (< emacs-major-version 26)
+  (defun register-definition-prefixes (_file _prefixes)))
 
 (defvar git-commit-mode-map)
 (defvar compilation-mode-font-lock-keywords)
 
+(eval-when-compile
+  (require (quote eieio))
+  (cl-pushnew 'url eieio--known-slot-names)
+  (cl-pushnew 'mirror-url eieio--known-slot-names))
+
 (define-obsolete-variable-alias 'borg-drone-directory
   'borg-drones-directory "Borg 3.2.0")
+(define-obsolete-variable-alias 'borg-byte-compile-recursively
+  'borg-compile-recursively "Borg 3.3.0")
+(define-obsolete-function-alias 'borg-byte-compile
+  #'borg-compile "Borg 3.3.0")
+
+;;; Variables
 
 (defvar borg-drones-directory
   (let* ((libdir (file-name-directory (directory-file-name
@@ -110,21 +124,25 @@ The value of this variable is usually the same as that of
   (expand-file-name ".gitmodules" borg-top-level-directory)
   "The \".gitmodules\" file of the drone repository.")
 
-;;; Variables
-
 (defvar borg-emacs-arguments '("-Q")
   "Arguments used when calling an inferior Emacs instance.
 Set this in \"~/.emacs.d/etc/borg/config.el\" and also set
-`EMACS_ARGUMENTS' in \"~/.emacs.d/etc/borg/config.mk\" to
-the same value")
+`EMACS_ARGUMENTS' in either \"~/.emacs.d/Makefile\" or
+\"~/.emacs.d/etc/borg/config.mk\" to the same value")
 
-(defvar borg-byte-compile-recursively nil
+(defvar borg-compile-function #'byte-compile-file
+  "The function used to compile a library.")
+
+(defvar borg-compile-recursively nil
   "Whether to compile recursively.
 
 Unfortunately there are many packages that put random crap
 into subdirectories.  Instead of this variable you should set
 `submodule.<drone>.recursive-byte-compile' for each DRONE that
 needs it.")
+
+(defvar borg--compile-natively nil
+  "Internal variable used by \"build-native\" make target.")
 
 (defvar borg-build-shell-command nil
   "Optional command used to run shell command build steps.
@@ -140,6 +158,16 @@ node `(borg)Using https URLs'.")
                                   borg-byte-compile
                                   borg-makeinfo)
   "Default build step of drone.")
+
+(defvar borg-maketexi-filename-regexp "\\`\\(%s\\|README\\).org\\'"
+  "Regexp matching Org files that may be exported to Texinfo.
+The name of the clone is substituted for %s.  Setting this to
+nil disables the export of any Org files.")
+
+(defvar borg-minimal-emacs-alist nil
+  "Alist mapping drones to the Emacs release they depend on.
+Drones that depend on an Emacs release higher than the currently
+used release are automatically disabled.")
 
 ;;; Utilities
 
@@ -162,12 +190,29 @@ inside the working tree."
 
 (defvar borg--gitmodule-cache nil)
 
+(defmacro borg-do-drones (spec &rest body)
+  "Loop over drones.
+Evaluate BODY with VAR bound to each drone, in turn.
+Inside BODY variables set in \".gitmodules\" are cached.
+Then evaluate RESULT to get return value, default nil.
+\n(fn (VAR [RESULT]) BODY...)"
+  (declare (indent 1))
+  (let ((var (car spec))
+        (result (cadr spec)))
+    `(let ((borg--gitmodule-cache (borg-drones 'raw)))
+       (dolist (,var borg--gitmodule-cache ,result)
+         (setq ,var (car ,var))
+         ,@body))))
+
 (defun borg-get (clone variable &optional all)
   "Return the value of `submodule.CLONE.VARIABLE' in `~/.emacs.d/.gitmodules'.
-If optional ALL is non-nil, then return all values as a list."
+If optional ALL is non-nil, then return all values as a list.
+VARIABLE can be a symbol or a string."
   (let ((values (if borg--gitmodule-cache
                     (plist-get (cdr (assoc clone borg--gitmodule-cache))
-                               (intern variable))
+                               (if (symbolp variable)
+                                   variable
+                                 (intern variable)))
                   (ignore-errors
                     ;; If the variable has no value then the exit code is
                     ;; non-zero, but that isn't an error as far as we are
@@ -175,12 +220,13 @@ If optional ALL is non-nil, then return all values as a list."
                     (apply #'process-lines "git" "config"
                            "--file" borg-gitmodules-file
                            `(,@(and all (list "--get-all"))
-                             ,(concat "submodule." clone "." variable)))))))
-    (if all values (car values))))
+                             ,(format "submodule.%s.%s" clone variable)))))))
+    (if all values (car (last values)))))
 
 (defun borg-get-all (clone variable)
   "Return all values of `submodule.CLONE.VARIABLE' in `~/.emacs.d/.gitmodules'.
-Return the values as a list."
+Return the values as a list.  VARIABLE can be a symbol or
+a string."
   (borg-get clone variable t))
 
 (defun borg-load-path (clone)
@@ -199,26 +245,39 @@ Return the values as a list."
   "Return the `Info-directory-list' for the clone named CLONE.
 
 If optional SETUP is non-nil, then return a list of directories
-containing texinfo and/or info files.  Otherwise return a list of
-directories containing a file named \"dir\"."
+containing org, texinfo and/or info files.  Otherwise return a
+list of directories containing a file named \"dir\"."
   (let ((repo (borg-worktree clone))
         (path (borg-get-all clone "info-path")))
-    (cl-mapcan (if setup
-                   (lambda (d)
-                     (setq d (file-name-as-directory d))
-                     (when (directory-files d t "\\.\\(texi\\(nfo\\)?\\|info\\)\\'" t)
-                       (list d)))
-                 (lambda (d)
-                   (setq d (file-name-as-directory d))
-                   (when (file-exists-p (expand-file-name "dir" d))
-                     (list d))))
-               (if path
-                   (mapcar (lambda (d) (expand-file-name d repo)) path)
-                 (list repo)))))
+    (cl-mapcan
+     (if setup
+         (lambda (d)
+           (setq d (file-name-as-directory d))
+           (and (file-directory-p d)
+                (directory-files
+                 d t "\\.\\(org\\|texi\\(nfo\\)?\\|info\\)\\'" t)
+                (list d)))
+       (lambda (d)
+         (setq d (file-name-as-directory d))
+         (and (file-exists-p (expand-file-name "dir" d))
+              (list d))))
+     (if path
+         (mapcar (lambda (d) (expand-file-name d repo)) path)
+       (list repo
+             (expand-file-name "doc" repo)
+             (expand-file-name "docs" repo))))))
 
 (defvar borg--multi-value-variables
   '(build-step load-path no-byte-compile info-path)
   "List of submodule variables which can have multiple values.")
+
+(defun borg-dronep (name)
+  "Return non-nil if a drone named NAME exists.
+If set in \".gitmodules\", then return the value
+of `submodule.NAME.path', nil otherwise."
+  (let ((default-directory borg-top-level-directory))
+    (car (process-lines "git" "submodule--helper" "config"
+                        (format "submodule.%s.path" name)))))
 
 (defun borg-drones (&optional include-variables)
   "Return a list of all assimilated drones.
@@ -236,38 +295,48 @@ INCLUDE-VARIABLES is `raw' then all values are lists.  Otherwise
 a property value is only a list if the corresponding property
 name is a member of `borg--multi-value-variables'.  If a property
 name isn't a member of `borg--multi-value-variables' but it does
-have multiple values anyway, then it is undefined with value is
-included in the returned value."
-  (if include-variables
-      (let (alist)
-        (dolist (line (and (file-exists-p borg-gitmodules-file)
-                           (process-lines "git" "config" "--list"
-                                          "--file" borg-gitmodules-file)))
-          (when (string-match
-                 "\\`submodule\\.\\([^.]+\\)\\.\\([^=]+\\)=\\(.+\\)\\'" line)
-            (let* ((drone (match-string 1 line))
-                   (prop  (intern (match-string 2 line)))
-                   (value (match-string 3 line))
-                   (elt   (assoc drone alist))
-                   (plist (cdr elt)))
-              (unless elt
-                (push (setq elt (list drone)) alist))
-              (setq plist
-                    (plist-put plist prop
-                               (if (or (eq include-variables 'raw)
-                                       (memq prop borg--multi-value-variables))
-                                   (nconc (plist-get plist prop)
-                                          (list value))
-                                 value)))
-              (setcdr elt plist))))
-        (cl-sort alist #'string< :key #'car))
-    (let* ((default-directory borg-top-level-directory)
-           (prefix (file-relative-name borg-drones-directory))
-           (offset (+ (length prefix) 50)))
-      (cl-mapcan (lambda (line)
-                   (and (string-equal (substring line 50 offset) prefix)
-                        (list (substring line offset))))
-                 (process-lines "git" "submodule--helper" "list")))))
+have multiple values anyway, then the last value is included in
+the overall return value."
+  (let* ((default-directory borg-top-level-directory)
+         (prefix (file-relative-name borg-drones-directory)))
+    (if include-variables
+        (let (alist)
+          (dolist (line (and (file-exists-p borg-gitmodules-file)
+                             (process-lines "git" "config" "--list"
+                                            "--file" borg-gitmodules-file)))
+            (when (string-match
+                   "\\`submodule\\.\\([^.]+\\)\\.\\([^=]+\\)=\\(.+\\)\\'"
+                   line)
+              (let* ((drone (match-string 1 line))
+                     (prop  (intern (match-string 2 line)))
+                     (value (match-string 3 line))
+                     (elt   (assoc drone alist))
+                     (plist (cdr elt)))
+                (unless elt
+                  (push (setq elt (list drone)) alist))
+                (setq plist (plist-put
+                             plist prop
+                             (if (or (eq include-variables 'raw)
+                                     (memq prop borg--multi-value-variables))
+                                 (nconc (plist-get plist prop)
+                                        (list value))
+                               value)))
+                (setcdr elt plist))))
+          (cl-sort (cl-delete-if-not
+                    (lambda (drone)
+                      (let ((path (plist-get (cdr drone) 'path)))
+                        (string-prefix-p prefix
+                                         (if (listp path)
+                                             (car (last path))
+                                           path))))
+                    alist)
+                   #'string< :key #'car))
+      (let ((offset (+ (length prefix) 50)))
+        (cl-mapcan (lambda (line)
+                     (and (ignore-errors
+                            (string-equal (substring line 50 offset) prefix))
+                          (list (substring line offset))))
+                   (process-lines "git" "submodule--helper" "list"))))))
 
 (defun borg-clones ()
   "Return a list of cloned packages.
@@ -300,12 +369,13 @@ to variable `borg-rewrite-urls-alist' (which see)."
                                     nil nil nil 'epkg-package-history))
              (pkg  (epkg name))
              (url  (and pkg
-                        (if (or (epkg-git-package-p pkg)
-                                (epkg-github-package-p pkg)
-                                (epkg-orphaned-package-p pkg)
-                                (epkg-gitlab-package-p pkg))
-                            (eieio-oref pkg 'url)
-                          (eieio-oref pkg 'mirror-url)))))
+                        (with-no-warnings
+                          (if (or (epkg-git-package-p pkg)
+                                  (epkg-github-package-p pkg)
+                                  (epkg-orphaned-package-p pkg)
+                                  (epkg-gitlab-package-p pkg))
+                              (eieio-oref pkg 'url)
+                            (eieio-oref pkg 'mirror-url))))))
         (when url
           (pcase-dolist (`(,orig . ,base) borg-rewrite-urls-alist)
             (when (string-prefix-p orig url)
@@ -352,19 +422,19 @@ is true in \"~/.emacs.d/.gitmodules\", then the drone named DRONE
 is skipped.
 
 If Emacs is running without an interactive terminal, then first
-load \"`user-emacs-directory'/etc/borg/init.el\", if that exists."
+load \"`borg-user-emacs-directory'/etc/borg/init.el\", if that
+exists."
   (when noninteractive
-    (let ((init (expand-file-name
-                 (convert-standard-filename "etc/borg/init.el")
-                 user-emacs-directory)))
+    (let ((init (convert-standard-filename
+                 (expand-file-name "etc/borg/init.el"
+                                   borg-user-emacs-directory))))
       (when (file-exists-p init)
         (load-file init))))
   (info-initialize)
   (let ((start (current-time))
         (skipped 0)
-        (initialized 0)
-        (borg--gitmodule-cache (borg-drones 'raw)))
-    (pcase-dolist (`(,drone) borg--gitmodule-cache)
+        (initialized 0))
+    (borg-do-drones (drone)
       (cond
        ((equal (borg-get drone "disabled") "true")
         (cl-incf skipped))
@@ -395,63 +465,75 @@ Add the appropriate directories to `load-path' and
 `Info-directory-list', and load the autoloads file,
 if it exists."
   (interactive (list (borg-read-clone "Activate clone: ")))
-  (dolist (dir (borg-load-path clone))
-    (let (file)
-      (cond ((and (file-exists-p
-                   (setq file (expand-file-name
-                               (concat clone "-autoloads.el") dir)))
-                  (with-demoted-errors "Error loading autoloads: %s"
-                    (load file nil t))))
-            ((and (file-exists-p
-                   (setq file (expand-file-name
-                               (concat clone "-loaddefs.el") dir)))
-                  (with-demoted-errors "Error loading autoloads: %s"
-                    (add-to-list 'load-path dir) ; for `org'
-                    (load file nil t))))
-            (t (push dir load-path)))))
+  (cl-flet
+      ((activate (dir part)
+         (let ((file (expand-file-name (format "%s-%s.el" clone part) dir)))
+           (and (file-exists-p file)
+                (with-demoted-errors "Error loading autoloads: %s"
+                  (load file nil t))
+                ;; We cannot rely on the autoloads file doing that.
+                (add-to-list 'load-path dir)))))
+    (dolist (dir (borg-load-path clone))
+      (or (activate dir "autoloads")
+          (activate dir "loaddefs")       ; `org' uses a different name.
+          (add-to-list 'load-path dir)))) ; There might be no autoloads file.
   (dolist (dir (borg-info-path clone))
     (push  dir Info-directory-list)))
 
 ;;; Construction
 
-(defun borg-batch-rebuild (&optional quick)
+(defun borg-batch-rebuild (&optional quick native)
   "Rebuild all assimilated drones.
 
-Drones are rebuilt in alphabetic order, except that Org is built
-first.  `init.el' and `USER-REAL-LOGIN-NAME.el' are also rebuilt.
+Borg and Compat are rebuild first, followed by other drones in
+alphabetic order.  `init.el' and `USER-REAL-LOGIN-NAME.el' are
+also rebuilt.
 
 This function is to be used only with `--batch'.
 
 When optional QUICK is non-nil, then do not build drones for
-which `submodule.DRONE.build-step' is set, assuming those are the
-drones that take longer to be built."
+which `submodule.DRONE.build-step' is set, assuming those are
+the drones that take longer to be built.
+
+When optional NATIVE is non-nil, then compile natively.  If
+NATIVE is a function, then use that, `native-compile' otherwise."
   (unless noninteractive
     (error "borg-batch-rebuild is to be used only with --batch"))
-  (let ((drones (borg-drones)))
-    (when (member "org" drones)
-      ;; `org-loaddefs.el' has to exist when compiling a library
-      ;; which depends on `org', else we get warnings about that
-      ;; not being so, and other more confusing warnings too.
-      (setq drones (cons "org" (delete "org" drones))))
-    (dolist (drone drones)
-      (unless (or (equal (borg-get drone "disabled") "true")
-                  (not (file-exists-p (borg-worktree drone)))
-                  (and quick (borg-get-all drone "build-step")))
-        (dolist (d (borg-load-path drone))
-          (dolist (f (directory-files
-                      d t "\\(\\.elc\\|-autoloads\\.el\\|-loaddefs\\.el\\)\\'"
-                      t))
-            (ignore-errors (delete-file f))))))
-    (dolist (drone drones)
+  (borg-do-drones (drone)
+    (unless (and quick (borg-get-all drone "build-step"))
+      (borg--remove-autoloads drone quick)))
+  (when (borg-dronep "org")
+    ;; `org-loaddefs.el' has to exist when compiling a library
+    ;; which depends on `org', else we get warnings about that
+    ;; not being so.
+    (let ((default-directory (borg-worktree "org")))
+      (shell-command "make autoloads")))
+  ;; Building `borg' first isn't strictly necessary, but since we have
+  ;; to build compat out of order, we might as well do it for borg too.
+  (message "\n--- [borg] ---\n")
+  (borg-build "borg")
+  ;; `compat' has to be build before the first package that depends on
+  ;; it is loaded.  Otherwise we would get errors about the fact that
+  ;; lib/<package(sic)>/compat-24.el does not exist, which is expected
+  ;; and correct, but also fatal.
+  (when (borg-dronep "compat")
+    (message "\n--- [compat] ---\n")
+    (borg-build "compat"))
+  (borg-do-drones (drone)
+    (unless (member drone '("borg" "compat"))
       (message "\n--- [%s] ---\n" drone)
       (cond
        ((equal (borg-get drone "disabled") "true")
         (message "Skipped (Disabled)"))
+       ((let ((min (cdr (assoc drone borg-minimal-emacs-alist))))
+          (and min (version< emacs-version min)
+               (message "Skipped (Requires Emacs >= %s)" min))))
        ((not (file-exists-p (borg-worktree drone)))
         (message "Skipped (Missing)"))
        ((and quick (borg-get-all drone "build-step"))
         (message "Skipped (Expensive to build)"))
-       (t (borg-build drone)))))
+       (t (let ((borg--compile-natively native))
+            (borg-build drone))))))
   (borg-batch-rebuild-init))
 
 (defun borg-batch-rebuild-init ()
@@ -475,9 +557,12 @@ This function is to be used only with `--batch'."
 Interactively, or when optional ACTIVATE is non-nil,
 then also activate the clone using `borg-activate'."
   (interactive (list (borg-read-clone "Build drone: ") t))
-  (if noninteractive
-      (borg--build-noninteractive clone)
-    (borg--build-interactive clone))
+  (cond
+   (noninteractive
+    (when (string-suffix-p "/" clone)
+      (setq clone (substring clone 0 -1)))
+    (borg--build-noninteractive clone))
+   ((borg--build-interactive clone)))
   (when activate
     (borg-activate clone)))
 
@@ -486,15 +571,30 @@ then also activate the clone using `borg-activate'."
         (build-cmd (if (functionp borg-build-shell-command)
                        (funcall borg-build-shell-command clone)
                      borg-build-shell-command))
-        (build (borg-get-all clone "build-step")))
-    (if  build
+        (build (borg-get-all clone "build-step"))
+        (config (borg--config-file)))
+    (when (file-exists-p config)
+      (message "  Loading %s..." config)
+      (load config nil t t))
+    (when (featurep 'comp)
+      (when borg--compile-natively
+        (setq borg-compile-function
+              (if (functionp borg--compile-natively)
+                  borg--compile-natively
+                #'borg--native-compile)))
+      (when (eq borg-compile-function 'native-compile) ; don't #'quote
+        (setq borg-compile-function #'borg--native-compile)))
+    (if build
         (dolist (cmd build)
           (message "  Running `%s'..." cmd)
           (cond ((member cmd '("borg-update-autoloads"
-                               "borg-byte-compile"
-                               "borg-makeinfo"))
+                               "borg-compile"
+                               "borg-maketexi"
+                               "borg-makeinfo"
+                               ;; For backward compatibility.
+                               "borg-byte-compile"))
                  (funcall (intern cmd) clone))
-                ((string-match-p "\\`(" cmd)
+                ((string-prefix-p "(" cmd)
                  (eval (read cmd)))
                 (build-cmd
                  (when (or (stringp build-cmd)
@@ -524,11 +624,9 @@ then also activate the clone using `borg-activate'."
                   (string-match-p emacs-lisp-file-regexp file)
                   (file-in-directory-p file top))))))
   (let ((buffer (get-buffer-create "*Borg Build*"))
-        (config (expand-file-name
-                 (convert-standard-filename "etc/borg/config.el")
-                 user-emacs-directory))
+        (config (borg--config-file))
         (process-connection-type nil))
-    (switch-to-buffer buffer)
+    (pop-to-buffer-same-window buffer)
     (with-current-buffer buffer
       (setq default-directory borg-user-emacs-directory)
       (borg-build-mode)
@@ -539,7 +637,9 @@ then also activate the clone using `borg-activate'."
                           (format-time-string "%H:%M:%S")
                           config))
           (load-file config))
-        (insert (format "\n(%s) Building %s\n\n"
+        (unless (looking-back "\n\n" (- (point) 2))
+          (insert ?\n))
+        (insert (format "(%s) Building %s\n\n"
                         (format-time-string "%H:%M:%S")
                         clone))))
     (set-process-filter
@@ -558,15 +658,15 @@ then also activate the clone using `borg-activate'."
   (require 'borg-elpa)
   (borg-elpa-initialize)
   (setq borg-build-shell-command (quote %S))
-  (borg-build %S))" user-emacs-directory borg-build-shell-command clone)
+  (borg-build %S))" borg-user-emacs-directory borg-build-shell-command clone)
                           (format "(progn
   (require 'borg)
   (borg-initialize)
   (setq borg-build-shell-command (quote %S))
   (borg-build %S))" borg-build-shell-command clone))))
-     'borg-build--process-filter)))
+     'borg--build-process-filter)))
 
-(defun borg-build--process-filter (process string)
+(defun borg--build-process-filter (process string)
   (when (buffer-live-p (process-buffer process))
     (with-current-buffer (process-buffer process)
       (let ((moving (= (point) (process-mark process))))
@@ -579,7 +679,7 @@ then also activate the clone using `borg-activate'."
 
 (defvar borg-build-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map "\C-q" 'bury-buffer)
+    (define-key map "\C-q" #'bury-buffer)
     map)
   "Keymap for `borg-build-mode'.")
 
@@ -598,23 +698,6 @@ then also activate the clone using `borg-activate'."
           (remove '(" --?o\\(?:utfile\\|utput\\)?[= ]\\(\\S +\\)" . 1)
                   compilation-mode-font-lock-keywords)))
 
-(defconst borg-autoload-format "\
-;;;\
- %s --- automatically extracted autoloads
-;;
-;;;\
- Code:
-\(add-to-list 'load-path (directory-file-name \
-\(or (file-name-directory #$) (car load-path))))
-\
-;; Local Variables:
-;; version-control: never
-;; no-byte-compile: t
-;; no-update-autoloads: t
-;; End:
-;;;\
- %s ends here\n")
-
 (defun borg-update-autoloads (clone &optional path)
   "Update autoload files for the clone named CLONE in the directories in PATH."
   (setq path (borg--expand-load-path clone path))
@@ -628,28 +711,35 @@ then also activate the clone using `borg-activate'."
                          (expand-file-name (concat clone "-tests.el") dir)))
                  path)
                 autoload-excludes))
-        (generated-autoload-file
-         (expand-file-name (format "%s-autoloads.el" clone) (car path))))
-    (message " Creating %s..." generated-autoload-file)
-    (when (file-exists-p generated-autoload-file)
-      (delete-file generated-autoload-file t))
-    (let* ((backup-inhibited t)
-           (version-control 'never)
-           (noninteractive t)
-           (filename (file-name-nondirectory generated-autoload-file)))
-      (write-region (format borg-autoload-format filename filename)
-                    nil generated-autoload-file nil 'silent)
+        (file (expand-file-name (format "%s-autoloads.el" clone) (car path))))
+    (message " Creating %s..." file)
+    ;; Stay close to what `package-generate-autoloads' does.
+    (let (;; This currently defaults to `nil' anyway and there is no
+          ;; need to double down on that.  By not doing so we avoid
+          ;; a warning on Emacs 25 and we keep it possible for users
+          ;; to change the value.
+          ;; (autoload-timestamps nil)
+          (backup-inhibited t)
+          ;; On Emacs 25 we get "Making version-control local to
+          ;; borg-autoloads.el while let-bound!" warnings, which
+          ;; I believe are harmless.
+          (version-control 'never)
+          (noninteractive t)
+          ;; I don't want to see the resulting warning again.
+          (autoload-compute-prefixes
+           (and (not (equal clone "ht")) autoload-compute-prefixes)))
+      (with-temp-buffer ; Kludge for #128.
+        (let ((coding-system-for-write 'utf-8-emacs-unix))
+          (write-region (autoload-rubric file "package" nil)
+                        nil file nil 'silent)))
       (cl-letf (((symbol-function 'progress-reporter-do-update) (lambda (&rest _)))
                 ((symbol-function 'progress-reporter-done) (lambda (_))))
-        (cond ((fboundp 'make-directory-autoloads)   ; >= 28
-               (make-directory-autoloads path generated-autoload-file))
-              ((fboundp 'update-directory-autoloads) ; <= 27
-               (apply 'update-directory-autoloads path)))))
-    (let ((buf (find-buffer-visiting generated-autoload-file)))
-      (when buf
-        (kill-buffer buf)))))
+        (let ((generated-autoload-file file))
+          (apply 'update-directory-autoloads path))))
+    (when-let ((buf (find-buffer-visiting file)))
+      (kill-buffer buf))))
 
-(defun borg-byte-compile (clone &optional path)
+(defun borg-compile (clone &optional path)
   "Compile libraries for the clone named CLONE in the directories in PATH."
   (let ((dirs (borg--expand-load-path clone path))
         (exclude (borg-get-all clone "no-byte-compile"))
@@ -670,7 +760,7 @@ then also activate the clone using `borg-activate'."
                (when (and (if-let ((v (borg-get
                                        clone "recursive-byte-compile")))
                               (member v '("yes" "on" "true" "1"))
-                            borg-byte-compile-recursively)
+                            borg-compile-recursively)
                           (not (file-symlink-p file))
                           (not (string-prefix-p "." name))
                           (not (member name '("RCS" "CVS"))))
@@ -682,23 +772,25 @@ then also activate the clone using `borg-activate'."
                         (file-readable-p file)
                         (string-match-p emacs-lisp-file-regexp name)
                         (not (auto-save-file-name-p file))
-                        (not (string-match-p "\\`\\." name))
-                        (not (string-match-p "-autoloads.el\\'" name))
+                        (not (string-prefix-p "." name))
+                        (not (string-suffix-p "-autoloads.el" name))
                         (not (string-equal dir-locals-file name)))
                (cl-incf
-                (if (or (string-match-p "-pkg.el\\'" name)
-                        (string-match-p "-tests?.el\\'" name)
+                (if (or (string-suffix-p "-pkg.el" name)
+                        (string-suffix-p "-test.el" name)
+                        (string-suffix-p "-tests.el" name)
                         (member file-relative exclude))
                     (progn (message " Skipping %s...skipped" file)
                            skip-count)
                   (unless byte-compile-verbose
                     (message "Compiling %s..." file))
-                  (pcase (byte-compile-file file)
+                  (pcase (funcall borg-compile-function file)
                     ('no-byte-compile
                      (message "Compiling %s...skipped" file)
                      skip-count)
-                    ('t file-count)
-                    (_  fail-count))))
+                    ((or 't (pred stringp))
+                     file-count)
+                    (_ fail-count))))
                (unless (equal dir last-dir)
                  (setq last-dir dir)
                  (cl-incf dir-count))))))))
@@ -708,17 +800,65 @@ then also activate the clone using `borg-activate'."
              (if (> skip-count 0) (format ", %d skipped" skip-count) "")
              (if (> dir-count  1) (format " in %d directories" dir-count) ""))))
 
+(defun borg-maketexi (clone &optional files)
+  "Generate Texinfo manuals from Org files for the clone named CLONE.
+Export each file located on `borg-info-path' if its name matches
+`borg-maketexi-filename-regexp' and the `TEXINFO_DIR_HEADER'
+export keyword is set in its content.  If optional FILES is
+non-nil, then try those files instead.  On Emacs 25 this function
+doesn't do anything."
+  ;; ... because turning on `org-mode' (via `find-file-noselect')
+  ;; results in an error that I do not wish to investigate.
+  (when (and (> emacs-major-version 25)
+             (or files borg-maketexi-filename-regexp))
+    (let ((repo (borg-worktree clone))
+          (exclude (borg-get-all clone "no-maketexi")))
+      (dolist (file (or files
+                        (cl-mapcan
+                         (lambda (dir)
+                           (directory-files
+                            dir t (format borg-maketexi-filename-regexp clone)))
+                         (borg-info-path clone t))))
+        (unless (or (member (file-relative-name file repo) exclude)
+                    (borg--file-tracked-p
+                     (concat (file-name-sans-extension file) ".texi")))
+          (let ((buffer (get-file-buffer file)))
+            (with-current-buffer (or buffer (find-file-noselect file))
+              (save-excursion
+                (save-restriction
+                  (widen)
+                  (goto-char (point-min))
+                  (when (save-excursion
+                          (let ((case-fold-search t))
+                            (re-search-forward
+                             "^#\\+texinfo_dir_title:" nil t)))
+                    (let ((export
+                           (save-excursion
+                             (let ((case-fold-search t))
+                               (and (re-search-forward
+                                     "^#\\+export_file_name:\\(.+\\)" nil t)
+                                    (string-trim (match-string 1)))))))
+                      (unless (and export
+                                   (member (file-name-extension export)
+                                           '("texi" "texinfo"))
+                                   (borg--file-tracked-p export))
+                        (message "Exporting %s..." file)
+                        (require (quote ox))
+                        (ignore-errors (org-texinfo-export-to-texinfo))
+                        (message "Exporting %s...done" file))))))
+              (unless buffer
+                (kill-buffer (current-buffer))))))))))
+
 (defun borg-makeinfo (clone)
   "Generate Info manuals and the Info index for the clone named CLONE."
   (dolist (default-directory (borg-info-path clone t))
-    (let ((exclude (borg-get-all clone "no-makeinfo")))
-      (dolist (texi (directory-files default-directory nil "\\.texi\\(nfo\\)?\\'"))
+    (let ((exclude (nconc (list "fdl.texi" "gpl.texi")
+                          (borg-get-all clone "no-makeinfo"))))
+      (dolist (texi (directory-files default-directory nil
+                                     "\\.texi\\(nfo\\)?\\'"))
         (let ((info (concat (file-name-sans-extension texi) ".info")))
-          (when (and (not (member texi exclude))
-                     (or (not (file-exists-p info))
-                         (= (process-file "git" nil nil nil
-                                          "ls-files" "--error-unmatch" info)
-                            1)))
+          (unless (or (member texi exclude)
+                      (borg--file-tracked-p info))
             (let ((cmd (format "makeinfo --no-split %s -o %s" texi info)))
               (message "  Running `%s'..." cmd)
               (borg-silencio "\\`(Shell command succeeded with %s)\\'"
@@ -730,6 +870,21 @@ then also activate the clone using `borg-activate'."
         (borg-silencio "\\`(Shell command succeeded with %s)\\'"
           (shell-command cmd))
         (message "  Running `%s'...done" cmd)))))
+
+(defun borg--remove-autoloads (drone &optional quick)
+  (unless (or (equal (borg-get drone "disabled") "true")
+              (not (file-exists-p (borg-worktree drone)))
+              (and quick (borg-get-all drone "build-step")))
+    (dolist (dir (borg-load-path drone))
+      (dolist (file (directory-files
+                     dir t "\\(\\.elc\\|-autoloads\\.el\\|-loaddefs\\.el\\)\\'"
+                     t))
+        (ignore-errors (delete-file file))))))
+
+(defun borg--native-compile (file)
+  (with-demoted-errors "borg--native-compile: %S"
+    (when (fboundp 'native-compile)
+      (native-compile file))))
 
 ;;; Assimilation
 
@@ -812,52 +967,51 @@ The Git directory is not removed."
 ;;; Convenience
 
 (with-eval-after-load 'git-commit
-  (define-key git-commit-mode-map "\C-c\C-b" 'borg-insert-update-message))
+  (define-key git-commit-mode-map "\C-c\C-b" #'borg-insert-update-message))
 
 (defun borg-insert-update-message ()
   "Insert information about drones that are changed in the index.
 Formatting is according to the commit message conventions."
   (interactive)
-  (let ((alist (borg--drone-states)))
-    (when alist
-      (let ((width (apply #'max (mapcar (lambda (e) (length (car e))) alist)))
-            (align (cl-member-if (pcase-lambda (`(,_ ,_ ,version))
-                                   (and version
-                                        (string-match-p "\\`v[0-9]" version)))
-                                 alist)))
-        (when (> (length alist) 1)
-          (let ((a 0) (m 0) (d 0))
-            (pcase-dolist (`(,_ ,state ,_) alist)
-              (pcase state
-                ("A" (cl-incf a))
-                ("M" (cl-incf m))
-                ("D" (cl-incf d))))
-            (insert (format "%s %-s drones\n\n"
-                            (pcase (list a m d)
-                              (`(,_ 0 0) "Assimilate")
-                              (`(0 ,_ 0) "Update")
-                              (`(0 0 ,_) "Remove")
-                              (_         "CHANGE"))
-                            (length alist)))))
-        (pcase-dolist (`(,drone ,state ,version) alist)
-          (insert
-           (format
+  (when-let ((alist (borg--drone-states)))
+    (let ((width (apply #'max (mapcar (lambda (e) (length (car e))) alist)))
+          (align (cl-member-if (pcase-lambda (`(,_ ,_ ,version))
+                                 (and version
+                                      (string-match-p "\\`v[0-9]" version)))
+                               alist)))
+      (when (> (length alist) 1)
+        (let ((a 0) (m 0) (d 0))
+          (pcase-dolist (`(,_ ,state ,_) alist)
             (pcase state
-              ("A" (format "Assimilate %%-%is %%s%%s\n" width))
-              ("M" (format "Update %%-%is to %%s%%s\n" width))
-              ("D" "Remove %s\n"))
-            drone
-            (if (and align version
-                     (string-match-p "\\`\\([0-9]\\|[0-9a-f]\\{7\\}\\)" version))
-                " "
-              "")
-            version)))))))
+              ("A" (cl-incf a))
+              ("M" (cl-incf m))
+              ("D" (cl-incf d))))
+          (insert (format "%s %-s drones\n\n"
+                          (pcase (list a m d)
+                            (`(,_ 0 0) "Assimilate")
+                            (`(0 ,_ 0) "Update")
+                            (`(0 0 ,_) "Remove")
+                            (_         "CHANGE"))
+                          (length alist)))))
+      (pcase-dolist (`(,drone ,state ,version) alist)
+        (insert
+         (format
+          (pcase state
+            ("A" (format "Assimilate %%-%is %%s%%s\n" width))
+            ("M" (format "Update %%-%is to %%s%%s\n" width))
+            ("D" "Remove %s\n"))
+          drone
+          (if (and align version
+                   (string-match-p "\\`\\([0-9]\\|[0-9a-f]\\{7\\}\\)" version))
+              " "
+            "")
+          version))))))
 
 (defun borg--drone-states ()
   (let ((default-directory borg-user-emacs-directory))
     (mapcar
      (lambda (line)
-       (pcase-let* ((`(,state ,module) (split-string line "\t")))
+       (pcase-let ((`(,state ,module) (split-string line "\t")))
          (list (file-name-nondirectory module)
                state
                (and (member state '("A" "M"))
@@ -871,21 +1025,20 @@ Formatting is according to the commit message conventions."
 
 ;;; Internal Utilities
 
+(defun borg--config-file ()
+  (convert-standard-filename
+   (expand-file-name "etc/borg/config.el" borg-user-emacs-directory)))
+
 (defun borg--maybe-absorb-gitdir (pkg)
-  (let ((ver (nth 2 (split-string (car (process-lines "git" "version")) " "))))
-    (when (string-match "\\.windows\\.[0-9]+\\'" ver)
-      (setq ver (substring ver 0 (match-beginning 0))))
+  (let* ((ver (nth 2 (split-string (car (process-lines "git" "version")) " ")))
+         (ver (and (string-match "\\`[0-9]+\\(\\.[0-9]+\\)*" ver)
+                   (match-string 0 ver))))
     (if (version< ver "2.12.0")
-        (let ((gitdir (borg-gitdir pkg))
-              (topdir (borg-worktree pkg)))
-          (unless (equal (let ((default-directory topdir))
-                           (car (process-lines "git" "rev-parse" "--git-dir")))
-                         (directory-file-name gitdir))
-            (rename-file (expand-file-name ".git" topdir) gitdir)
-            (borg--link-gitdir pkg)
-            (let ((default-directory gitdir))
-              (borg--call-git pkg "config" "core.worktree"
-                              (concat "../../../lib/" pkg)))))
+        (let ((default-directory (borg-worktree pkg))
+              (gitdir (borg-gitdir pkg)))
+          (make-directory gitdir t)
+          (borg--call-git pkg "init" "--separate-git-dir" gitdir)
+          (borg--link-gitdir pkg))
       (borg--call-git pkg "submodule" "absorbgitdirs" "--" (borg-worktree pkg)))))
 
 (defun borg--maybe-reuse-gitdir (pkg)
@@ -930,6 +1083,9 @@ Formatting is according to the commit message conventions."
 (defun borg--git-success (&rest args)
   (= (apply #'process-file "git" nil nil nil args) 0))
 
+(defun borg--file-tracked-p (file)
+  (borg--git-success "ls-files" "--error-unmatch" file))
+
 (defun borg--refresh-magit ()
   (when (and (derived-mode-p 'magit-mode)
              (fboundp 'magit-refresh))
@@ -942,39 +1098,49 @@ Formatting is according to the commit message conventions."
             (or path (borg-load-path clone)))))
 
 (defun borg--sort-submodule-sections (file)
+  "Sort submodule sections in the current buffer.
+Non-interactively operate in FILE instead."
+  (interactive (list buffer-file-name))
   (with-current-buffer (or (find-buffer-visiting file)
                            (find-file-noselect file))
     (revert-buffer t t)
-    (goto-char (point-min))
-    (re-search-forward "^\\[submodule")
-    (sort-regexp-fields
-     nil "^\\(?:#.*\n\\)*\\[submodule \"\\([^\"]+\\)\"].*\\(?:[^[].*\n\\)+"
-     "\\1" (line-beginning-position) (point-max))
+    (save-excursion
+      (goto-char (point-min))
+      (while (re-search-forward "^\\[submodule" nil t)
+        (let ((end (or (and (save-excursion (re-search-forward "^##+ ." nil t))
+                            (match-beginning 0))
+                       (point-max))))
+          (sort-regexp-fields
+           nil
+           "^\\(?:#.*\n\\)*\\[submodule \"\\([^\"]+\\)\"].*\\(?:[^[].*\n\\)+"
+           "\\1" (line-beginning-position) end)
+          (goto-char end))))
     (save-buffer)))
 
 (defun borg--maybe-confirm-unsafe-action (action package url)
   (require 'epkg nil t)
   (let* ((pkg (and (fboundp 'epkg)
                    (epkg package)))
-         (ask (cond ((and pkg
-                          (fboundp 'epkg-wiki-package-p)
-                          (epkg-wiki-package-p pkg)) "\
+         (ask (cond ((and (fboundp 'epkg-wiki-package-p)
+                          (epkg-wiki-package-p pkg))
+                     "\
 This package is from the Emacswiki.  Anyone could trivially \
 inject malicious code.  Do you really want to %s it? ")
-                    ((or (and pkg
-                              (fboundp 'epkg-orphaned-package-p)
+                    ((or (and (fboundp 'epkg-orphaned-package-p)
                               (epkg-orphaned-package-p pkg))
-                         (string-match-p "emacsorphanage" url)) "\
+                         (string-match-p "emacsorphanage" url))
+                     "\
 This package is from the Emacsorphanage, which might import it \
 over an insecure connection.  Do you really want to %s it? ")
-                    ((or (and pkg
-                              (fboundp 'epkg-shelved-package-p)
+                    ((or (and (fboundp 'epkg-shelved-package-p)
                               (epkg-shelved-package-p pkg))
-                         (string-match-p "emacsattic" url)) "\
+                         (string-match-p "emacsattic" url))
+                     "\
 This package is from the Emacsattic, which might have imported it \
 over an insecure connection.  Do you really want to %s it? ")
                     ((or (string-prefix-p "git://" url)
-                         (string-prefix-p "http://" url)) "\
+                         (string-prefix-p "http://" url))
+                     "\
 This package is being fetched over an insecure connection. \
 Do you really want to %s it? "))))
     (when (and ask (not (yes-or-no-p (format ask action))))

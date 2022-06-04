@@ -1,5 +1,54 @@
 # -*- mode: org -*-
-* v3.2.0    UNRELEASED
+* v3.3.1    2022-02-16
+
+- ~borg-user-emacs-directory~ wasn't used in all places where it
+  should be used.
+
+- Added new function ~borg-dronep~.
+
+- Added new macro ~borg-do-drones~, which is mostly like ~dolist~ but
+  caches variables that are set in ".gitmodules".
+
+- Added new make target ~build-native~.
+
+- Like manual in the top directory, those in the ~doc/~ and ~docs/~
+  directories are now also automatically build and added to
+  ~Info-directory-list~.
+
+- Added an additional make variable ~EMACS_ARGUMENTS~ that is reserved
+  for use by users.
+
+* v3.3.0    2022-01-01
+
+- When setting ~borg-top-level-directory~ do not assume we are inside
+  a Git repository, which makes it possible to use Borg to build a
+  static configuration to be deployed outside the repository used
+  to build it.  #110
+
+- Fixed path to ~etc/borg/config.mk~, which is now also loaded when
+  building not-interactively.
+
+- Added new variable ~borg-compile-function~, which can be set to
+  ~native-compile~ to enable upfront native compilation.  This should
+  be done in ~~/.emacs.d/etc/borg/config.el~ like so:
+
+  #+begin_src emacs-lisp
+    (when (native-comp-available-p)
+      (setq borg-compile-function #'native-compile))
+  #+end_src
+
+  Renamed ~borg-byte-compile-recursively~ to ~borg-compile-recursively~
+  and ~borg-byte-compile~ to ~borg-compile~ accordingly.  #116
+
+- ~borg-drones~ learned to ignore non-drone submodules.  #117
+
+- The ~variable~ argument of ~borg-get~ can now be a symbol.
+
+- If a variable has multiple values ~borg-get~ failed to return the
+  last value when using the cache, as it already did when not using
+  the cache.
+
+* v3.2.0    2021-05-30
 
 - Taught ~borg-load-path~ to use the ~elisp/~ directory automatically
   like it already uses the ~lisp/~ directory or the top-level.  The
@@ -17,7 +66,8 @@
 - The ~default-directory~ used during compilation and when presenting
   the results did not always match, leading to broken links.  41b4494
 
-- Disabled clones are now being skipped when rebuilding.  bde5d4c
+- When initializing and rebuilding packages, then missing and disabled
+  packages are skipped now.  bde5d4c, 93f40f9, 640169d
 
 - It is now possible to place the drones in a directory that is named
   something other than ~lib~ using the ~borg.drones-directory~ variable.
@@ -33,23 +83,28 @@
 - When Borg is used as secondary package manager, then ~borg.mk~ is now
   usable as well.  5d87d34
 
-* v3.1.2    2019/12/05
+- Added documentation on how to recover from missing commits and
+  missing repositories.  ecb2f9f
+
+- Symlinks are resolved now when setting path variables.  444b9d7
+
+* v3.1.2    2019-12-05
 
 - The new option ~borg-rewrite-urls-alist~ allows rewriting certain urls
   when a package repository is cloned.  This is mostly intended to
   replace Github and Gitlab ssh URLs with https urls.
 
-* v3.1.1    2019/05/05
+* v3.1.1    2019-05-05
 
 - Cosmetics and improvements to maintenance tools.
 
-* v3.1.0    2019/01/28
+* v3.1.0    2019-01-28
 
 - The new user configuration file ~~/.emacs.d/etc/borg/init.el~ is
   loaded by ~borg-initialize~ if Emacs is running without an interactive
   terminal.
 
-* v3.0.0    2018/10/31
+* v3.0.0    2018-10-31
 
 - Borg can now be used as a secondary package manager alongside
   ~package.el~.  When used like this, then Borg itself should be
@@ -110,7 +165,7 @@
 - The command ~borg-insert-update-message~ now also handles assimilations
   and removals.
 
-* v2.0.0    2017/09/19
+* v2.0.0    2017-09-19
 
 - Added new command ~borg-clone~ to make it easier to review a package
   before assimilating it.  Assimilating a package gives that package
@@ -164,7 +219,7 @@
 - Fixed a type error in ~borg-initialized~ when drones are being
   skipped.
 
-* v1.0.0    2016/12/31
+* v1.0.0    2016-12-31
 
 - Repository moved to https://github.com/emacscollective/borg.
 
@@ -192,7 +247,7 @@
 
 - Minor bug fixes and typo fixes.
 
-* v0.2.0    2016/11/05
+* v0.2.0    2016-11-05
 
 - Repository moved to https://gitlab.com/emacscollective/borg.
 
@@ -200,34 +255,34 @@
 
 - Improved and extended ~make~ targets.
 
-* v0.1.6    2016/10/08
+* v0.1.6    2016-10-08
 
 - Updated homepage link.
 
-* v0.1.5    2016/09/27
+* v0.1.5    2016-09-27
 
 - Typo fixes.
 
-* v0.1.4    2016/09/27
+* v0.1.4    2016-09-27
 
 - When invoked as a command ~borg-build~ failed.
 
-* v0.1.3    2016/09/01
+* v0.1.3    2016-09-01
 
 - Added new function ~borg-batch-rebuild-init~ to allow compiling
   just the init files without also compiling all drones.
 
-* v0.1.2    2016/08/27
+* v0.1.2    2016-08-27
 
 - ~borg-batch-rebuild~ now also compiles the secondary init file
   ~<user-real-login-name>.el~ if present.
 
 - ~borg-batch-rebuild~ now compiles ~org~ before all other packages.
 
-* v0.1.1    2016/05/18
+* v0.1.1    2016-05-18
 
 - ~borg-build~ did not respect ~submodule.<name>.build-step~.
 
-* v0.1.0    2016/05/17
+* v0.1.0    2016-05-17
 
 - First release.

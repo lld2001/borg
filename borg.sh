@@ -1,9 +1,9 @@
 #!/bin/sh
 
-# Copyright (C) 2016-2021  Jonas Bernoulli
+# Copyright (C) 2016-2022  Jonas Bernoulli
 #
 # Author: Jonas Bernoulli <jonas@bernoul.li>
-# License: GPL v3 <https://www.gnu.org/licenses/gpl-3.0.txt>
+# SPDX-License-Identifier: GPL-3.0-or-later
 
 hive_remote=$(git config -f .gitmodules borg.collective)
 push_remote=$(git config -f .gitmodules borg.pushDefault)
@@ -13,24 +13,24 @@ test -n "$toplevel" || exit 2
 cd "$toplevel"
 
 git submodule--helper list |
-while read mode sha1 stage path
+while read -r mode sha1 stage path
 do
     if test -e "$path"
     then
         name=$(git submodule--helper name "$path")
 
-        printf "\n--- [%s] ---\n\n" $name
+        printf "\n--- [%s] ---\n\n" "$name"
 
         if ! test -e "$path"/.git
         then
             git submodule--helper clone \
                 --name "$name" \
                 --path "$path" \
-                --url $(git config -f .gitmodules submodule."$name".url)
+                --url "$(git config -f .gitmodules submodule."$name".url)"
         fi
 
         git config -f .gitmodules --get-all submodule."$name".remote |
-        while read remote remote_url
+        while read -r remote remote_url
         do
             if ! test -e "$path"/.git
             then

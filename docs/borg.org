@@ -1,29 +1,24 @@
-#+TITLE: Borg User Manual
+#+title: Borg User Manual
 :PREAMBLE:
-#+AUTHOR: Jonas Bernoulli
-#+EMAIL: jonas@bernoul.li
-#+DATE: 2018-2021
-#+LANGUAGE: en
+#+author: Jonas Bernoulli
+#+email: jonas@bernoul.li
+#+date: 2018-{{{year}}}
 
-#+TEXINFO_DIR_CATEGORY: Emacs
-#+TEXINFO_DIR_TITLE: Borg: (borg).
-#+TEXINFO_DIR_DESC: Assimilate Emacs packages as Git submodules
-#+SUBTITLE: for version 3.1.2 (v3.1.2-54-gb210e4a+1)
+#+texinfo_dir_category: Emacs
+#+texinfo_dir_title: Borg: (borg).
+#+texinfo_dir_desc: Assimilate Emacs packages as Git submodules
+#+subtitle: for version 3.3.1-git
 
-#+TEXINFO_DEFFN: t
-#+OPTIONS: H:4 num:4 toc:2
-#+PROPERTY: header-args :eval never
-#+BIND: ox-texinfo+-before-export-hook ox-texinfo+-update-copyright-years
-#+BIND: ox-texinfo+-before-export-hook ox-texinfo+-update-version-strings
+#+setupfile: .orgconfig
 
 The Borg assimilate Emacs packages as Git submodules.  Borg is a
 bare-bones package manager for Emacs packages.
 
-#+TEXINFO: @noindent
-This manual is for Borg version 3.1.2 (v3.1.2-54-gb210e4a+1).
+#+texinfo: @noindent
+This manual is for Borg version 3.3.1-git.
 
-#+BEGIN_QUOTE
-Copyright (C) 2016-2021 Jonas Bernoulli <jonas@bernoul.li>
+#+begin_quote
+Copyright (C) 2016-{{{year}}} Jonas Bernoulli <jonas@bernoul.li>
 
 You can redistribute this document and/or modify it under the terms
 of the GNU General Public License as published by the Free Software
@@ -34,7 +29,7 @@ This document is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
-#+END_QUOTE
+#+end_quote
 :END:
 * Introduction
 
@@ -57,7 +52,6 @@ which it was announced.
 [fn:1] https://emacsair.me/2016/05/17/assimilate-emacs-packages-as-git-submodules.
 
 * Installation
-*** _ :ignore:
 
 Borg can be used by itself, in which case it has to be bootstrapped.
 This is how Borg originally was intended to be used exclusively but
@@ -70,29 +64,29 @@ To use Borg as a secondary package manager alongside Package, begin by
 installing the former using the latter.  Borg is only available from
 Melpa, so you have to add that first.
 
-#+BEGIN_SRC emacs-lisp
+#+begin_src emacs-lisp
   (add-to-list 'package-archives
                (cons "melpa" "https://melpa.org/packages/")
                t)
-#+END_SRC
+#+end_src
 
 Then you have to ~M-x package-refresh-contents RET~ before you can ~M-x
 package-install RET borg RET~.  Doing that should add a verbose variant
 of this to your init file:
 
-#+BEGIN_SRC emacs-lisp
+#+begin_src emacs-lisp
   (custom-set-variables
    '(package-selected-packages '(borg)))
-#+END_SRC
+#+end_src
 
 Then you have to make the two package managers aware of one another by
 replacing the call to ~package-initialize~ in your init file with this:
 
-#+BEGIN_SRC emacs-lisp
+#+begin_src emacs-lisp
   (if (require 'borg-elpa nil t)
       (borg-elpa-initialize)
     (package-initialize))
-#+END_SRC
+#+end_src
 
 Just like Package (aka Elpa) defaults to installing packages in ~elpa/~,
 Borg defaults to installing them in ~borg/~.  (When using both package
@@ -102,18 +96,17 @@ setting the Git variable ~borg.drones-directory~.
 
 You should also add a ~Makefile~ containing:
 
-#+BEGIN_SRC makefile
+#+begin_src makefile
   BORG_SECONDARY_P = true
   include $(shell find -L elpa -maxdepth 1 -regex '.*/borg-[.0-9]*' |\
     sort | tail -n 1)/borg.mk
-#+END_SRC
+#+end_src
 
 Despite its title, many things mentioned in the next section are
 relevant even when Borg was installed the way we just did.  Just
 saying.
 
 ** Bootstrapping
-*** _ :ignore:
 
 (As mentioned in the next section you can use a location other than
 ~~/.emacs.d~.  Never-the-less most of the subsequent examples just talk
@@ -129,7 +122,7 @@ To get started clone the repository of the ~emacs.g~ collective.  A
 Borg as the package manager.  Most users end up using ~emacs.g~ merely
 as a bootstrapping seed and do not merge upstream changes after that.
 
-This collective already assimilats a few drones in addition to ~borg~
+This collective already assimilates a few drones in addition to ~borg~
 itself, namely ~magit~, ~epkg~, ~use-package~, ~auto-compile~, ~git-modes~ and
 ~diff-hl~, as well as their dependencies.  These drones are not required
 by ~borg~ but their use is highly recommended.
@@ -144,12 +137,12 @@ mentioned files available.  Now that these files are available you can
 run ~make bootstrap~ to get and configure all submodules (including the
 ~borg~ submodule) and to build all drones.
 
-#+BEGIN_SRC sh
+#+begin_src sh
   git clone git@github.com:emacscollective/emacs.g.git ~/.emacs.d
   cd ~/.emacs.d
   make bootstrap-borg
   make bootstrap
-#+END_SRC
+#+end_src
 
 If you cloned to somewhere other than ~~/.emacs.d~, then you can use
 that configuration using ~emacs -Q --load /path/to/emacs.g/init.el~.
@@ -169,11 +162,11 @@ ignored in those submodules.  For this reason it is useful to ignore
 these outputs globally, for example in your ~~/.config/git/ignore~
 file:
 
-#+BEGIN_SRC undefined
+#+begin_src undefined
   *.elc
   *-autoloads.el
   dir
-#+END_SRC
+#+end_src
 
 You may discover more things that you'll want to ignore this way as
 you use ~borg~.
@@ -184,10 +177,10 @@ If you don't want to base your configuration on the ~emacs.g~
 starter-kit described in the previous section, then you have
 to do a few things manually.
 
-#+BEGIN_SRC sh
+#+begin_src sh
   git init ~/.emacs.d
   cd ~/.emacs.d
-#+END_SRC
+#+end_src
 
 By default Borg installs packages inside the ~lib/~ subdirectory, but
 since you are starting from scratch, you may choose something else
@@ -196,7 +189,7 @@ repository.
 
 Then you should add a ~Makefile~ containing at least:
 
-#+BEGIN_SRC makefile
+#+begin_src makefile
   DRONES_DIR = $(shell git config "borg.drones-directory" || echo "lib")
 
   -include $(DRONES_DIR)/borg/borg.mk
@@ -206,62 +199,72 @@ Then you should add a ~Makefile~ containing at least:
           --url git@github.com:emacscollective/borg.git
           @cd $(DRONES_DIR)/borg; git symbolic-ref HEAD refs/heads/master
           @cd $(DRONES_DIR)/borg; git reset --hard HEAD
-#+END_SRC
+#+end_src
 
 Now you are probably tempted to run ~make bootstrap-borg~, but that is
 for bootstrapping /from a seed/, and what we are doing right now is to
 bootstrap /from scratch/.  In the process we are creating a seed but we
 are not there yet.  Instead run this:
 
-#+BEGIN_SRC sh
+#+begin_src sh
   git submodule add --name borg git@github.com:emacscollective/borg.git lib/borg
-#+END_SRC
+#+end_src
 
 Now that ~borg~ is available we can build all the assimilated packages (currently
 just ~borg~ itself) using ~make bootstrap~.
 
-The final obligatory step is to tell Emacs to initialize Borg by
+Now it is time to tell Emacs to initialize Borg instead of Package by
 adding a simple ~init.el~ file containing at least:
 
-#+BEGIN_SRC emacs-lisp
+#+begin_src emacs-lisp
+  (when (< emacs-major-version 27)
+    (setq package-enable-at-startup nil))
   (add-to-list 'load-path (expand-file-name "lib/borg" user-emacs-directory))
   (require 'borg)
   (borg-initialize)
-#+END_SRC
+#+end_src
+
+Beginning with Emacs 27.1, ~package-enable-at-startup~ has to be
+disabled earlier, in ~early-init.el~:
+
+#+begin_src emacs-lisp
+  (setq package-enable-at-startup nil)
+#+end_src
 
 Now you could create the initial commit but you could also delay that.
 
-#+BEGIN_SRC sh
+#+begin_src sh
   git commit -m "Assimilate borg"
-#+END_SRC
+#+end_src
 
 Now it is time to assimilate some other essential packages.  You could
 do so using ~M-x borg-assimilate~, but you would quickly notice that
 doing so without the help of the ~epkg~ package is quite cumbersome,
 so lets manually install that and its dependency first:
 
-#+BEGIN_SRC sh
+#+begin_src sh
   git submodule add --name closql git@github.com:emacscollective/closql.git lib/closql
   git submodule add --name emacsql git@github.com:skeeto/emacsql.git lib/emacsql
+  git submodule add --name compat https://git.sr.ht/~pkal/compat lib/compat
   git submodule add --name epkg git@github.com:emacscollective/epkg.git lib/epkg
   git config -f .gitmodules submodule.emacsql.no-byte-compile emacsql-pg.el
   echo /epkgs/ >> .gitignore
   git add .gitignore .gitmodules
   make all
   git commit -m "Assimilate epkg and dependencies"
-#+END_SRC
+#+end_src
 
 Once you have done that and restarted Emacs, then you can Magit using
 Borg as described in [[*Assimilation]].  As part of that you should tell
 Magit status buffers to display submodules:
 
-#+BEGIN_SRC emacs-lisp
+#+begin_src emacs-lisp
   (with-eval-after-load 'magit
     (magit-add-section-hook 'magit-status-sections-hook
                             'magit-insert-modules
                             'magit-insert-stashes
                             'append))
-#+END_SRC
+#+end_src
 
 Finally (look, nobody forced you to do this from scratch ;-) I
 strongly suggest that you make yourself familiar with my ~auto-compile~
@@ -294,39 +297,39 @@ your keys.
 
 Luckily this can easily be fixed using the following global rules.
 
-#+BEGIN_SRC emacs-lisp
+#+begin_src emacs-lisp
   git config --global url.https://github.com/.insteadOf git@github.com:
   git config --global url.https://gitlab.com/.insteadOf git@gitlab.com:
-#+END_SRC
+#+end_src
 
 If you don't want to configure this globally, then you can also configure
 Borg itself to prefer the ~https~ URLS.
 
-#+BEGIN_SRC emacs-lisp
+#+begin_src emacs-lisp
   (setq borg-rewrite-urls-alist
         '(("git@github.com:" . "https://github.com/")
           ("git@gitlab.com:" . "https://gitlab.com/")))
-#+END_SRC
+#+end_src
 
 This does not affect packages that have already been assimilated.
 During bootstrapping you have to change the URLs for packages that
 are assimilated by default.
 
-#+BEGIN_SRC sh
+#+begin_src sh
   cd ~/.emacs.d
   sed -i "s|git@github.com:|https://github.com/|g" .gitmodules
   sed -i "s|git@gitlab.com:|https://gitlab.com/|g" .gitmodules
   git commit -m "Use https URLs for Github and Gitlab"
-#+END_SRC
+#+end_src
 
 If you have already run ~make bootstrap~, then you also have to edit
 ~.git/config~.
 
-#+BEGIN_SRC sh
+#+begin_src sh
   cd ~/.emacs.d
   sed -i "s|git@github.com:|https://github.com/|g" .git/config
   sed -i "s|git@gitlab.com:|https://gitlab.com/|g" .git/config
-#+END_SRC
+#+end_src
 
 *** Missing commits and repositories
 
@@ -335,11 +338,11 @@ repository is missing.  That can be scary but understanding what is
 going on and how to deal with it goes a long way.
 
 So what does it look like when that happens? Here are two typical
-examples that you might see when run ~make bootstrap~.
+examples that you might see when running ~make bootstrap~.
 
 Some commit is missing:
 
-#+BEGIN_SRC fundamental
+#+begin_src fundamental
   --- [hl-todo] ---
 
   Cloning into '/home/you/.emacs.d/lib/hl-todo'...
@@ -352,11 +355,11 @@ Some commit is missing:
   fatal: Could not parse object '02bda39bf2d2b77168255d9e49c78b95b0bd314a'.
   futile: Checkout of '02bda39bf2d2b77168255d9e49c78b95b0bd314a' into submodule path 'lib/hl-todo' failed
   HEAD is now at 3bba459 README.md: Cosmetics
-#+END_SRC
+#+end_src
 
 Some repository is missing:
 
-#+BEGIN_SRC fundamental
+#+begin_src fundamental
   --- [paren-face] ---
 
   Cloning into '/home/you/.emacs.d/lib/paren-face'...
@@ -367,18 +370,18 @@ Some repository is missing:
   and the repository exists.
   fatal: clone of 'git@github.com:tarsius/broken-url.git' into submodule path '/home/you/.emacs.d/lib/paren-face' failed
   futile: Clone of any remote into submodule path 'lib/paren-face' failed
-#+END_SRC
+#+end_src
 
 Both of these packages are not essential and I recommend that you
 delay figuring out what is going on exactly and that you instead
 proceed bootstrapping the rest of your configuration.  Once you are
-done with, then you have an Emacs setup that allows you to be
-efficiently investigate the above issues.
+done with that, then you have a personalized Emacs setup that allows
+you to efficiently investigate the above issues.
 
 To skip a package you have to "deinit" the submodule and also remove
 the empty directory that represents the no longer initialized module:
 
-#+BEGIN_SRC sh
+#+begin_src sh
   $ git submodule deinit lib/paren-face/
   Cleared directory 'lib/paren-face'
   error: could not lock config file .git/modules/paren-face/config: No such file or directory
@@ -393,18 +396,18 @@ the empty directory that represents the no longer initialized module:
           deleted:    lib/paren-face
 
   no changes added to commit
-#+END_SRC
+#+end_src
 
 Ignore the irrelevant warnings and that the package is now considered deleted.
 
 Now ~make bootstrap~ has to resume where it left of, more or less.  This
 make target is equal to these three commands:
 
-#+BEGIN_SRC sh
+#+begin_src sh
   $ git submodule init
   $ lib/borg/borg.sh
   $ make build
-#+END_SRC
+#+end_src
 
 The first already succeeded at this point and the second failed
 somewhere along the way, so lets run that again.  It will make some
@@ -420,7 +423,7 @@ how to deal with them.
 The commit that you have referenced was removed from the upstream
 repository.  Pick another commit instead and resume the bootstrap.
 
-#+BEGIN_SRC sh
+#+begin_src sh
   $ git submodule update --init lib/hl-todo
   Submodule 'hl-todo' (git@github.com:tarsius/hl-todo.git) registered for path 'lib/hl-todo'
   fatal: remote error: upload-pack: not our ref 02bda39bf2d2b77168255d9e49c78b95b0bd314a
@@ -430,11 +433,11 @@ repository.  Pick another commit instead and resume the bootstrap.
   $ cd ../..
   $ git add lib/hl-todo
   $ git commit -m '"Update" hl-todo'
-#+END_SRC
+#+end_src
 
 The repository was moved.  Update the url and resume the bootstrap.
 
-#+BEGIN_SRC sh
+#+begin_src sh
   $ git config --file .gitmodules submodule.paren-face.url git@github.com:tarsius/paren-face.git
   $ git submodule update --init lib/paren-face
   Submodule 'paren-face' (git@github.com:tarsius/paren-face.git) registered for path 'lib/paren-face'
@@ -442,16 +445,16 @@ The repository was moved.  Update the url and resume the bootstrap.
   Submodule path 'lib/paren-face': checked out 'eb4a51b8ef455e0914108105e7c0008d675457cc'
   $ git add .gitmodules
   $ git commit -m "paren-face: Update url"
-#+END_SRC
+#+end_src
 
 The repository was removed and no copy remains available anywhere.
 This is the worst case scenario and unlikely to become a reality.
 Remove the package for good.
 
-#+BEGIN_SRC sh
+#+begin_src sh
   $ git rm lib/goner
   $ git commit -m "Remove goner"
-#+END_SRC
+#+end_src
 
 * Startup
 
@@ -459,7 +462,7 @@ The ~user-init-file~, ~~/.emacs.d/init.el~, has to contain a call to
 ~borg-initialize~.  It should also set ~package-enable-at-startup~ to ~nil~
 unless you really want to use both ~borg~ and ~package~ at the same time.
 
-- Function: borg-initialize
+- Function: borg-initialize ::
 
   This function initializes assimilated drones using ~borg-activate~.
 
@@ -467,7 +470,7 @@ unless you really want to use both ~borg~ and ~package~ at the same time.
   it by setting the value of the Git variable ~submodule.DRONE.disabled~
   to true in ~~/.emacs.d/.gitmodules~.
 
-- Command: borg-activate clone
+- Command: borg-activate clone ::
 
   This function activates the clone named CLONE by adding the
   appropriate directories to the ~load-path~ and to ~Info-directory-list~,
@@ -513,43 +516,43 @@ commit.
 If you assimilate a single package, then it is recommended that you
 use a message similar to this:
 
-#+BEGIN_SRC undefined
+#+begin_src undefined
   Assimilate foo v1.0.0
-#+END_SRC
+#+end_src
 
 Or if one or more dependencies had to be assimilated, something like:
 
-#+BEGIN_SRC undefined
+#+begin_src undefined
   Assimilate foo and dependencies
 
   Assimilate foo v1.0.0
   Assimilate bar v1.1.0
   Assimilate baz v0.1.0
-#+END_SRC
+#+end_src
 
 It's usually a good idea not to assimilate unrelated packages in the
 same commit, but something like this might make sense:
 
-#+BEGIN_SRC undefined
+#+begin_src undefined
   Assimilate ido and extensions
 
   Assimilate flx               v0.6.1-3-gae0981b
   Assimilate ido-at-point      v1.0.0
-  Assimilate ido-ubiquitious   v3.12-2-g7354d98
+  Assimilate ido-ubiquitous    v3.12-2-g7354d98
   Assimilate ido-vertical-mode v0.1.6-33-gb42e422
   Assimilate smex               3.0-13-g55aaebe
-#+END_SRC
+#+end_src
 
 The command ~borg-insert-update-message~ can be used to generate such
 commit messages.
 
-- Key: C-c C-b [in git-commit-mode buffer], borg-insert-update-message
+- Key: C-c C-b [in git-commit-mode buffer] (borg-insert-update-message) ::
 
   This command insert information about drones that are changed in the
   index.  Formatting is according to the commit message conventions
   described above.
 
-- Command: borg-assimilate package url &optional partially
+- Command: borg-assimilate package url &optional partially ::
 
   This command assimilates the package named PACKAGE from URL.
 
@@ -564,7 +567,7 @@ commit messages.
   configuring the build steps use ~borg-build~ to complete the
   assimilation.
 
-- Command: borg-clone package url
+- Command: borg-clone package url ::
 
   This command clones the package named PACKAGE from URL, without
   assimilating it.  This is useful when you want to inspect the
@@ -576,7 +579,7 @@ commit messages.
   a prefix argument is used, then the url is also read in the
   minibuffer.
 
-- Command: borg-remove clone
+- Command: borg-remove clone ::
 
   This command removes the cloned or assimilated package named CLONE,
   by removing the working tree from ~borg-drones-directory~, regardless
@@ -584,31 +587,38 @@ commit messages.
   package that has only been cloned for review using ~borg-clone~.  The
   Git directory is not removed.
 
-- Command: borg-build clone &optional activate
+- Command: borg-build clone &optional activate ::
 
   This command builds the clone named CLONE.  Interactively, or when
   optional ACTIVATE is non-nil, then also activate the drone using
   ~borg-activate~.
 
-- Function: borg-update-autoloads clone &optional path
+- Function: borg-update-autoloads clone &optional path ::
 
   This function updates the autoload file for the libraries belonging
   to the clone named CLONE in the directories in PATH.  PATH can be
   omitted or contain file-names that are relative to the top-level of
   CLONE's repository.
 
-- Function: borg-byte-compile clone &optional path
+- Function: borg-compile clone &optional path ::
 
   This function compiles the libraries for the clone named CLONE in
   the directories in PATH.  PATH can be omitted or contain file-names
   that are relative to the top-level of CLONE's repository.
 
-- Function: borg-makeinfo clone
+- Function: borg-maketexi clone &optional files ::
+
+  This function generates Texinfo files from certain Org files for the
+  clone named CLONE.  Org files that are located on ~borg-info-path~ are
+  exported if their names match ~borg-maketexi-filename-regexp~ and the
+  ~TEXINFO_DIR_HEADER~ export keyword is set in their content.
+
+- Function: borg-makeinfo clone ::
 
   This function generates the Info manuals and the Info index for the
   clone named CLONE.
 
-- Function: borg-batch-rebuild &optional quick
+- Function: borg-batch-rebuild &optional quick ::
 
   This function rebuilds all assimilated drones in alphabetic order,
   except for Org which is rebuilt first.  After that it also builds
@@ -621,7 +631,7 @@ commit messages.
   drones for which ~submodule.DRONE.build-step~ is set, assuming that
   those are the drones that take longer to be built.
 
-- Function: borg-batch-rebuild-init
+- Function: borg-batch-rebuild-init ::
 
   This function builds the init files specified by the Make variable
   ~INIT_FILES~, or if that is unspecified ~init.el~ and ~LOGIN.el~, where
@@ -666,18 +676,18 @@ can create a single commit for all updated drones, which ever you find
 more appropriate.  However it is recommended that you use a message
 similar to:
 
-#+BEGIN_SRC undefined
+#+begin_src undefined
   Update foo to v1.1.0
-#+END_SRC
+#+end_src
 
 Or for multiple packages:
 
-#+BEGIN_SRC undefined
+#+begin_src undefined
   Update 2 drones
 
   Update foo to v1.1.0
   Update bar to v1.2.1
-#+END_SRC
+#+end_src
 
 The command ~borg-insert-update-message~ can be used to generate such
 commit messages.
@@ -709,7 +719,7 @@ fork a drone, you should also record information about your personal
 remote in the super-repository by setting ~submodule.DRONE.remote~ in
 ~~/.emacs.d/.gitmodules~.
 
-- Variable: submodule.DRONE.remote "NAME URL"
+- Variable: submodule.DRONE.remote "NAME URL" ::
 
   This variable specifies an additional remote named NAME that is
   fetched from URL.  This variable can be specified multiple times.
@@ -720,7 +730,7 @@ remote in the super-repository by setting ~submodule.DRONE.remote~ in
   like this to the DRONE repository by setting ~remote.NAME.url~ to
   URL and using the standard value for ~remote.NAME.fetch~.
 
-- Variable: borg.pushDefault FORK
+- Variable: borg.pushDefault FORK ::
 
   This variable specifies a name used for push-remotes.  Because this
   variable can only have one value it is recommended that you use the
@@ -739,18 +749,18 @@ The following ~make~ targets are available by default.  To use them you
 have to be in ~~/.emacs.d~ in a shell.  They are implemented in ~borg.mk~,
 which is part of the ~borg~ package.
 
-- Command: help
+- Command: help ::
 
   This target prints information about the following targets.
 
-- Command: all
-- Command: build
+- Command: all ::
+- Command: build ::
 
   This target rebuilds all assimilated drones in alphabetic order,
   except for Org which is rebuilt first.  After that it also builds
   the user init files, like ~build-init~ does.
 
-- Command: build-init
+- Command: build-init ::
 
   This target builds the init files specified by the Make variable
   ~INIT_FILES~, or if that is unspecified ~init.el~ and ~LOGIN.el~, where
@@ -763,7 +773,7 @@ which is part of the ~borg~ package.
   have to somehow synchronize that file between your machines without
   checking it into Git.
 
-- Command: quick
+- Command: quick ::
 
   This target builds /most/ drones.  Excluded are all drones for which
   the Git variable ~submodule.DRONE.build-step~ is set, assuming that those
@@ -771,28 +781,28 @@ which is part of the ~borg~ package.
 
   It also builds the init files as described above.
 
-- Command: lib/DRONE
+- Command: lib/DRONE ::
 
   This target builds the drone named DRONE.
 
-- Command: tangle-init
+- Command: tangle-init ::
 
   This target tangles (creates) ~init.el~ from ~init.org~.  You obviously
   don't have to use such a file if you don't want to.
 
-- Command: clean
+- Command: clean ::
 
   This target removes all byte-code files inside ~~/.emacs.d~.
 
-- Command: clean-init
+- Command: clean-init ::
 
   This target removes byte-code files for init files.
 
-- Command: bootstrap-borg
+- Command: bootstrap-borg ::
 
   This target bootstraps ~borg~ itself.
 
-- Command: bootstrap
+- Command: bootstrap ::
 
   This target attempts to bootstrap the drones.  To do so it runs
   ~git submodule init~, ~borg.sh~ (which see), and ~make build~.
@@ -807,7 +817,7 @@ which is part of the ~borg~ package.
 
 * Variables
 
-- Variable: borg.drones-directory DIRECTORY
+- Variable: borg.drones-directory DIRECTORY ::
 
   This Git variable can be used to override the name of the directory
   that contains the drone submodules.  If specified, the value has to
@@ -819,14 +829,14 @@ which is part of the ~borg~ package.
 The values of the following variables are set at startup and should
 not be changed by the user.
 
-- Variable: borg-drones-directory
+- Variable: borg-drones-directory ::
 
   The value of this constant is the directory beneath which drone
   submodules are placed.  The value is set based on the location of
   the ~borg~ library and the Git variable ~borg.drones-directory~ if set,
   and should not be changed.
 
-- Variable: borg-user-emacs-directory
+- Variable: borg-user-emacs-directory ::
 
   The value of this constant is the directory beneath which additional
   per-user Emacs-specific files are placed.  The value is set based on
@@ -834,14 +844,14 @@ not be changed by the user.
   value is usually the same as that of ~user-emacs-directory~, except
   when Emacs is started with ~emacs -q -l /path/to/init.el~.
 
-- Variable: borg-gitmodules-file
+- Variable: borg-gitmodules-file ::
 
   The value of this constant is the ~.gitmodules~ file of the
   super-repository.
 
 The value of this Make variable has to be set in ~~/.emacs.d/Makefile~.
 
-- Variable: INIT_FILES
+- Variable: INIT​_FILES ::
 
   A list of init files to be build by the Make targets ~build~ and
   ~build-init~.  See [[*Make targets]].
@@ -850,7 +860,7 @@ The values of these borg-specific Git variables have to be set in the
 file ~~/.emacs.d/.gitmodules~.  The variables ~borg.pushDefault~ and
 ~submodule.DRONE.remote~ are described in [[*Patching drones]].
 
-- Variable: borg.collective REMOTE
+- Variable: borg.collective REMOTE ::
 
   This variable specifies the name used for remotes that reference
   a repository that has been patched by the collective.  If a NAME
@@ -865,20 +875,20 @@ file ~~/.emacs.d/.gitmodules~.  The variables ~borg.pushDefault~ and
 Because most repositories used to maintain Emacs packages follow some
 common-sense conventions, Borg usually does not have to be told how to
 build a given drone.  Building is done using ~borg-build~, which in turn
-usually does its work using ~borg-update-autoloads~, ~borg-byte-compile~,
-and ~borg-makeinfo~.
+usually does its work using ~borg-update-autoloads~, ~borg-compile~,
+~borg-maketexi~, and ~borg-makeinfo~.
 
 However some packages don't follow the conventions either because they
 are too complex to do so, or for the sake of doing it differently.
 But in either case resistance is futile; by using the following
 variables you can tell Borg how to build such packages.
 
-- Variable: submodule.DRONE.build-step COMMAND
+- Variable: submodule.DRONE.build-step COMMAND ::
 
   By default drones are built using the lisp functions
-  ~borg-update-autoloads~, ~borg-byte-compile~, and ~borg-makeinfo~, but
-  if this variable has one or more values, then DRONE is built using
-  these COMMANDs *instead*.
+  ~borg-update-autoloads~, ~borg-compile~, ~borg-maketexi~, and
+  ~borg-makeinfo~, but if this variable has one or more values, then
+  DRONE is built using these COMMANDs *instead*.
 
   Each COMMAND can be one of the default steps, an S-expression, or
   a shell command.  The COMMANDs are executed in the specified order.
@@ -909,7 +919,7 @@ variables you can tell Borg how to build such packages.
     [submodule "multiple-cursors"]
             path = lib/multiple-cursors
             url = git@github.com:magnars/multiple-cursors.el.git
-            build-step = borg-byte-compile
+            build-step = borg-compile
   #+END_SRC
 
   Note that just because a package provides a ~Makefile~, you do not
@@ -919,7 +929,7 @@ variables you can tell Borg how to build such packages.
   ~borg-makeinfo~ as an additional build-step because the former might
   not generate an Info index file (named ~dir~), which Borg relies on.
 
-- Variable: borg-build-shell-command
+- Variable: borg-build-shell-command ::
 
   This variable can be used to change how shell commands specified
   by ~submodule.DRONE.build-step~ are run.  The default value is ~nil~,
@@ -948,14 +958,13 @@ variables you can tell Borg how to build such packages.
   autoload.  This is because build happens in a separate Emacs process
   started with ~-Q --batch~, which only receives the name of the function.
 
-- Variable: submodule.DRONE.load-path PATH
+- Variable: submodule.DRONE.load-path PATH ::
 
   This variable instructs ~borg-activate~ to add PATH to the ~load-path~
   instead of the directory it would otherwise have added.  Likewise it
-  instructs ~borg-byte-compile~ to compile the libraries in that
-  directory.  PATH has to be relative to the top-level of the
-  repository of the drone named DRONE.  This variable can be specified
-  multiple times.
+  instructs ~borg-compile~ to compile the libraries in that directory.
+  PATH has to be relative to the top-level of the repository of the
+  drone named DRONE.  This variable can be specified multiple times.
 
   Normally Borg uses ~elisp/~ as the drone's ~load-path~, if that exists;
   otherwise ~lisp/~, if that exists; or else the top-level directory.
@@ -973,11 +982,11 @@ variables you can tell Borg how to build such packages.
             info-path = doc
   #+END_SRC
 
-- Variable: submodule.DRONE.no-byte-compile PATH
+- Variable: submodule.DRONE.no-byte-compile PATH ::
 
-  This variable instructs ~borg-byte-compile~ to not compile the library
-  at PATH.  PATH has to be relative to the top-level of the repository
-  of the drone named DRONE.  This variable can be specified multiple
+  This variable instructs ~borg-compile~ to not compile the library at
+  PATH.  PATH has to be relative to the top-level of the repository of
+  the drone named DRONE.  This variable can be specified multiple
   times.
 
   Sometimes a drone comes with an optional library which adds support
@@ -991,9 +1000,9 @@ variables you can tell Borg how to build such packages.
   to use the PostgreSQL back-end and assimilate ~pg~, then you should
   undo that.)
 
-- Variable: submodule.DRONE.recursive-byte-compile BOOLEAN
+- Variable: submodule.DRONE.recursive-byte-compile BOOLEAN ::
 
-  Setting this variable to ~true~ instructs ~borg-byte-compile~ to compile
+  Setting this variable to ~true~ instructs ~borg-compile~ to compile
   DRONE's directories recursively.  This isn't done by default because
   there are more repositories in which doing so would cause issues
   than there are repositories that would benefit from doing so.
@@ -1005,36 +1014,59 @@ variables you can tell Borg how to build such packages.
   a feature (which effectively turns them into libraries) and/or if a
   file named ~.nosearch~ existed in the subdirectory.  That file tells
   functions such as ~normal-top-level-add-subdirs-to-load-path~ and
-  ~borg-byte-compile~ to ignore the containing directory.
+  ~borg-compile~ to ignore the containing directory.
 
-- Variable: borg-byte-compile-recursive
+- Variable: borg-compile-function ::
 
-  Setting this variable to a non-nil value instructs ~borg-byte-compile~
+  Setting this variable to ~native-compile~ enables native compilation.
+  This can be done in ~/.emacs.d/etc/borg/config.el~.
+
+  #+begin_src emacs-lisp
+    (when (native-comp-available-p)
+      (setq borg-compile-function #'native-compile))
+  #+end_src
+
+- Variable: borg-compile-recursively ::
+
+  Setting this variable to a non-nil value instructs ~borg-compile~
   to compile all drones recursively.  Doing so is discouraged.
 
-- Variable: submodule.DRONE.info-path PATH
+- Variable: submodule.DRONE.info-path PATH ::
 
   This variable instructs ~borg-initialize~ to add PATH to
   ~Info-directory-list~.  PATH has to be relative to the top-level of
   the repository of the drone named DRONE.
 
-- Variable: submodule.DRONE.no-makeinfo PATH
+- Variable: submodule.DRONE.no-maketexi PATH ::
+
+  This variable instructs ~borg-maketexi~ to not create a Texinfo file
+  for the Org file at PATH.  PATH has to be relative to the top-level
+  of the repository of the drone named DRONE.  This variable can be
+  specified multiple times.
+
+- Variable: submodule.DRONE.no-makeinfo PATH ::
 
   This variable instructs ~borg-makeinfo~ to not create an Info file for
   the Texinfo file at PATH.  PATH has to be relative to the top-level
   of the repository of the drone named DRONE.  This variable can be
   specified multiple times.
 
-- Variable: submodule.DRONE.disabled true|false
+- Variable: submodule.DRONE.disabled true|false ::
 
   If the value of this variable is ~true~, then it is skipped by
   ~borg-initialize~.
 
-- Variable: borg-rewrite-urls-alist
+- Variable: borg-rewrite-urls-alist ::
 
   An alist that can optionally be used to rewrite certain URLs.  Each
   element has the form ~(ORIG . BASE)~.  Each URL that starts with ORIG
   is rewritten to start with BASE instead.  See [[*Using https URLs]].
+
+- Variable: borg-maketexi-filename-regexp ::
+
+  A regexp matching Org files that may be exported to Texinfo by
+  ~borg-maketexi~.  The name of the clone is substituted for ~%s~.
+  Setting this to ~nil~ disables the export of any Org files.
 
 * Low-level functions
 
@@ -1042,12 +1074,12 @@ You normally should not have to use the following low-level functions
 directly.  That being said, you might want to do so anyway if you
 build your own tools on top of Borg.
 
-- Function: borg-worktree clone
+- Function: borg-worktree clone ::
 
   This function returns the top-level of the working tree of the
   clone named CLONE.
 
-- Function: borg-gitdir clone
+- Function: borg-gitdir clone ::
 
   This function returns the Git directory of the clone named CLONE.
 
@@ -1055,23 +1087,30 @@ build your own tools on top of Borg.
   when CLONE's Git directory is actually located inside the working
   tree.
 
-- Function: borg-get clone variable &optional all
+- Macro: borg-do-drones (var [result]) body...) ::
+
+  This macro loop over drones.  BODY is evaluated with VAR bound to
+  each drone, in turn.  Inside BODY variables set in ~.gitmodules~ are
+  cached.  Then RESULT is evaluated to get the return value,
+  defaulting to nil.
+
+- Function: borg-get clone variable &optional all ::
 
   This function returns the value of the Git variable
   ~submodule.CLONE.VARIABLE~ defined in ~~/.emacs.d/.gitmodules~.  If
   optional ALL is non-nil, then it returns all values as a list.
 
-- Function: borg-get-all clone variable
+- Function: borg-get-all clone variable ::
 
   This function returns all values of the Git variable
   ~submodule.CLONE.VARIABLE~ defined in ~~/.emacs.d/.gitmodules~ as a
   list.
 
-- Function: borg-load-path clone
+- Function: borg-load-path clone ::
 
   This function returns the ~load-path~ for the clone named CLONE.
 
-- Function: borg-info-path clone &optional setup
+- Function: borg-info-path clone &optional setup ::
 
   This function returns the ~Info-directory-list~ for the clone named
   CLONE.
@@ -1080,7 +1119,14 @@ build your own tools on top of Borg.
   containing ~texi~ and/or ~info~ files.  Otherwise it returns a list of
   directories containing a file named ~dir~.
 
-- Function: borg-drones &optional include-variables
+- Function: borg-dronep name ::
+
+  This function returns non-nil if a drone named NAME exists.
+
+  If that is set in ~.gitmodules~, then it returns the value of
+  ~submodule.NAME.path~, nil otherwise.
+
+- Function: borg-drones &optional include-variables ::
 
   This function returns a list of all assimilated drones.
 
@@ -1100,7 +1146,7 @@ build your own tools on top of Borg.
   values anyway, then it is undefined with value is included in the
   returned value.
 
-- Function: borg-clones
+- Function: borg-clones ::
 
   This function returns a list of all cloned packages.
 
@@ -1108,7 +1154,7 @@ build your own tools on top of Borg.
   names of all other repositories that are located directly inside
   ~borg-drones-directory~ but aren't tracked as submodules.
 
-- Function: borg-read-package prompt &optional edit-url
+- Function: borg-read-package prompt &optional edit-url ::
 
   This function reads a package name and the url of its upstream
   repository from the user, and returns them as a list.
@@ -1122,7 +1168,7 @@ build your own tools on top of Borg.
 
   PROMPT is used when prompting for the package name.
 
-- Function: borg-read-clone prompt
+- Function: borg-read-clone prompt ::
 
   This function reads the name of a cloned package from the user.
 
@@ -1130,19 +1176,14 @@ There exist a few more functions, but those are considered to be
 internal and might therefore change in incompatible ways without that
 being noted in the change log.
 
-- Function: borg--maybe-absorb-gitdir pkg
-- Function: borg--maybe-reuse-gitdir pkg
-- Function: borg--restore-worktree pkg
-- Function: borg--call-git pkg &rest args
-- Function: borg--expand-load-path drone path
-- Function: borg--sort-submodule-sections
+- Function: borg--maybe-absorb-gitdir pkg ::
+- Function: borg--maybe-reuse-gitdir pkg ::
+- Function: borg--restore-worktree pkg ::
+- Function: borg--call-git pkg &rest args ::
+- Function: borg--expand-load-path drone path ::
+- Function: borg--sort-submodule-sections ::
 
-* Command Index
-:PROPERTIES:
-:APPENDIX:   t
-:INDEX:      cp
-:END:
-* Function Index
+* Function and Command Index
 :PROPERTIES:
 :APPENDIX:   t
 :INDEX:      fn
@@ -1152,13 +1193,13 @@ being noted in the change log.
 :APPENDIX:   t
 :INDEX:      vr
 :END:
-* _ Copying
+* Copying
 :PROPERTIES:
 :COPYING:    t
 :END:
 
-#+BEGIN_QUOTE
-Copyright (C) 2016-2021 Jonas Bernoulli <jonas@bernoul.li>
+#+begin_quote
+Copyright (C) 2016-{{{year}}} Jonas Bernoulli <jonas@bernoul.li>
 
 You can redistribute this document and/or modify it under the terms
 of the GNU General Public License as published by the Free Software
@@ -1169,15 +1210,18 @@ This document is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
-#+END_QUOTE
+#+end_quote
 
-* _ :ignore:
+#  LocalWords:  CLONE's COMMANDs DRONE's Elpa Epkg Github Gitlab
+#  LocalWords:  LocalWords MERCHANTABILITY Magit Makefile Melpa
+#  LocalWords:  PLIST Texinfo alist args autoload autoloads borg
+#  LocalWords:  else's emacs eval featurep gitdir gitmodules https
+#  LocalWords:  init makeinfo minibuffer plist pushDefault src
+#  LocalWords:  subdirectories subdirectory submodule submodules
+#  LocalWords:  texinfo unpulled url urls worktree
 
 # IMPORTANT: Also update ORG_ARGS and ORG_EVAL in the Makefile.
 # Local Variables:
-# eval: (require 'ox-extra nil t)
-# eval: (require 'ox-texinfo+ nil t)
-# eval: (and (featurep 'ox-extra) (ox-extras-activate '(ignore-headlines)))
 # indent-tabs-mode: nil
 # org-src-preserve-indentation: nil
 # End:
