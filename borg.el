@@ -899,7 +899,7 @@ build and activate the drone."
   (interactive
    (nconc (borg-read-package "Assimilate package: " current-prefix-arg)
           (list (< (prefix-numeric-value current-prefix-arg) 0))))
-  (borg--maybe-confirm-unsafe-action "assimilate" package url)
+  ;; (borg--maybe-confirm-unsafe-action "assimilate" package url)
   (message "Assimilating %s..." package)
   (let ((default-directory borg-top-level-directory))
     (borg--maybe-reuse-gitdir package)
