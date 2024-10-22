@@ -154,8 +154,12 @@ node `(borg)Using https URLs'.")
 
 (defvar borg-default-build-step '(borg-update-autoloads
                                   borg-byte-compile
-                                  borg-makeinfo)
-  "Default build step of drone.")
+                                  )
+  "Default build step of drone.
+borg-update-autoloads
+borg-byte-compile
+borg-makeinfo
+")
 
 (defvar borg-maketexi-filename-regexp "\\`\\(%s\\|README\\).org\\'"
   "Regexp matching Org files that may be exported to Texinfo.
